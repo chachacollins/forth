@@ -1,6 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include "lexer.h"
+#include "compiler.h"
 
 char* read_file(const char* filename)
 {

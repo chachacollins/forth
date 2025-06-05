@@ -1,1 +1,4 @@
 forth
+*.out
+*.asm
+*.ft
