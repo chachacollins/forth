@@ -1,10 +1,12 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include "compiler.h"
+#include "lexer.h"
 #include "fasm_header.h"
 
 #define write_file(fmt, ...) (fprintf(output_file, fmt, ##__VA_ARGS__))
@@ -64,10 +66,6 @@ void asm_prelude(void)
         "\tret\n"
         "entry main\n"
         "main:\n"
-        "\tmov rdi, 69\n"
-        "\tcall print_number\n"
-        "\tmov rdi, 420\n"
-        "\tcall print_number\n"
     );
 }
 
@@ -112,7 +110,60 @@ void build_asm(void)
 void compile(char* source)
 {
     init_compiler();
+    init_lexer(source);
     asm_prelude();
+    bool loop = true;
+    while(loop)
+    {
+        Token tok = next_token();
+        switch(tok.kind)
+        {
+            case NUM:
+                write_file("\tpush %d\n", atoi(tok.start));
+                break;
+            case PLUS: 
+                write_file(
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tadd rax, rbx\n"
+                    "\tpush rax\n"
+                );
+                break;
+            case MINUS:
+                write_file(
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tsub rax, rbx\n"
+                    "\tpush rax\n"
+                );
+                break;
+            case MULT:
+                write_file(
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tmul rbx\n"
+                    "\tpush rax\n"
+                );
+                break;
+            case DIV:
+                write_file(
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tdiv rbx\n"
+                    "\tpush rax\n"
+                );
+                break;
+            case PRINT:
+                write_file(
+                    "\tpop rdi\n"
+                    "\tcall print_number\n"
+                );
+                break;
+            case EOFF:
+                loop = false;
+                break;
+        }
+    }
     asm_epilogue();
     build_asm();
 }

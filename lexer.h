@@ -3,6 +3,7 @@
 
 typedef enum {
     DUP,
+    PRINT,
     PLUS,
     MINUS,
     DIV,

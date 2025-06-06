@@ -94,7 +94,8 @@ static TokenKind identifier(void)
 {
     switch(lexer.start[0])
     {
-        case 'd': match_ident(1,2,"up", DUP);
+        case 'd': return match_ident(1,2,"up", DUP);
+        case 'p': return match_ident(1,4, "rint", PRINT);
         default: return ILLEGAL;
     }
 }
