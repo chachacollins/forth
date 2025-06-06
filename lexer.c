@@ -120,6 +120,7 @@ Token next_token(void)
         case '-': return make_token(MINUS);
         case '*': return make_token(MULT);
         case '/': return make_token(DIV);
+        case '.': return make_token(DOT);
         case '\0': return make_token(EOFF);
         default: return make_token(ILLEGAL);
     }

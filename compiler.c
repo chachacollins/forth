@@ -66,6 +66,7 @@ void asm_prelude(void)
         "\tret\n"
         "entry main\n"
         "main:\n"
+        "\tmov rbp, rsp\n"
     );
 }
 

@@ -9,6 +9,7 @@ typedef enum {
     DIV,
     MULT,
     NUM,
+    DOT,
     ILLEGAL,
     EOFF
 } TokenKind;
