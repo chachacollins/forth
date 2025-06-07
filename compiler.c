@@ -154,6 +154,13 @@ void compile(char* source)
                     "\tpush rax\n"
                 );
                 break;
+            case DUP:
+                write_file(
+                    "\tpop rax\n"
+                    "\tpush rax\n"
+                    "\tpush rax\n"
+                );
+                break;
             case PRINT:
                 write_file(
                     "\tpop rdi\n"

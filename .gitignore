@@ -2,3 +2,5 @@ forth
 *.out
 *.asm
 *.ft
+nob
+*.old
