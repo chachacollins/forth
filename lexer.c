@@ -1,6 +1,7 @@
 #include "lexer.h"
 #include <stdbool.h>
 #include <stdio.h>
+#include <assert.h>
 #include <string.h>
 
 typedef struct {
@@ -12,6 +13,7 @@ Lexer lexer = {0};
 
 void init_lexer(char* source)
 {
+    assert(source != NULL);
     lexer.start = source;
     lexer.current = source;
 }
@@ -113,7 +115,6 @@ Token next_token(void)
     char c = advance();
     if(is_alpha(c)) return read_ident();
     if(is_num(c)) return read_number();
-    if(is_caps(c)) fprintf(stderr, "Error: Please use snakecase %c\n", c);
     switch(c)
     {
         case '+': return make_token(PLUS);

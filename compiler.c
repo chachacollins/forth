@@ -14,21 +14,22 @@
 #define write_file(fmt, ...)                                                       \
       do {                                                                         \
         assert(output_file != NULL);                                               \
-        (fprintf(output_file, fmt, ##__VA_ARGS__));                                \
+        fprintf(output_file, fmt, ##__VA_ARGS__);                                  \
+      } while (0)
+
+#define init_compiler()                                                            \
+    do {                                                                           \
+        output_file = fopen("out.asm", "w");                                       \
+        if (!output_file)                                                          \
+        {                                                                          \
+          perror("Error");                                                         \
+          exit(69);                                                                \
+        }                                                                          \
       } while (0)
 
 //TODO: ERROR Handling
 FILE* output_file;
 
-void init_compiler(void)
-{
-    output_file = fopen("out.asm", "w");
-    if(!output_file) 
-    {
-        perror("Error");
-        exit(69);
-    }
-}
 
 void asm_prelude(void)
 {
@@ -189,6 +190,7 @@ bool generate_asm(char* source)
             case ILLEGAL:
                 //TODO: make errors better
                 nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
+                fclose(output_file);
                 return false;
             case EOFF:
                 loop = false;
