@@ -66,11 +66,6 @@ static bool is_num(char c)
     return (c >= '0' && c <= '9');
 }
 
-static bool is_caps(char c)
-{
-    return (c >= 'A' && c <= 'Z');
-}
-
 static Token read_number(void)
 {
     while(is_num(peek())) advance();

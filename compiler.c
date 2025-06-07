@@ -11,29 +11,37 @@
 #include "nob.h"
 #include "fasm_header.h"
 
-#define write_file(fmt, ...)                                                       \
+//TODO: handle parseint
+//TODO: fix the magic values
+
+#define write_asm_file(fmt, ...)                                                   \
       do {                                                                         \
-        assert(output_file != NULL);                                               \
-        fprintf(output_file, fmt, ##__VA_ARGS__);                                  \
+        assert(asm_file != NULL);                                                  \
+        fprintf(asm_file, fmt, ##__VA_ARGS__);                                     \
       } while (0)
 
-#define init_compiler()                                                            \
+#define open_asm_file()                                                            \
     do {                                                                           \
-        output_file = fopen("out.asm", "w");                                       \
-        if (!output_file)                                                          \
+        asm_file = fopen("out.asm", "w");                                          \
+        if (!asm_file)                                                             \
         {                                                                          \
-          perror("Error");                                                         \
-          exit(69);                                                                \
+          nob_log(NOB_ERROR, "Could not open output file %s\n", strerror(errno));  \
+          return false;                                                            \
         }                                                                          \
       } while (0)
 
-//TODO: ERROR Handling
-FILE* output_file;
+#define close_file(file)                                                           \
+      do {                                                                         \
+        fclose(file);                                                              \
+        file = NULL;                                                               \
+      } while (0)
 
+//TODO: change this someday from being global as of now idgaf
+FILE* asm_file;
 
 void asm_prelude(void)
 {
-    write_file(
+    write_asm_file(
         "format ELF64 executable\n"
         "segment readable writeable\n"
         "scratch rb 10\n"
@@ -79,31 +87,34 @@ void asm_prelude(void)
 
 void asm_epilogue(void)
 {
-    write_file(
+    write_asm_file(
         "\tmov rax, 60\n"
         "\txor rdi, rdi\n"
         "\tsyscall\n"
     );
-    fclose(output_file);
 }
 
-void exec_asm(char* output)
+bool exec_asm(char* executable_file)
 {
     pid_t child = fork();
-    assert(child >= 0);
-    if(child == 0) 
+    if(child < 0) 
     {
-        char* argv[] = {"./asm", "out.asm", output, NULL};
-        int result = execv(argv[0], argv);
-        assert(result == 0);
+        nob_log(NOB_ERROR, "%s", strerror(errno));
+        return false;
+    } else if (child == 0) 
+    {
+        char* argv[] = {"./asm", "out.asm", executable_file, NULL};
+        (void)execv(argv[0], argv);
+        NOB_UNREACHABLE("Execv failed\n");
     } else
     {
         pid_t ret = wait(NULL);
-        assert(ret >= 0);
+        if(ret < 0) return false;
     }
+    return true;
 }
 
-bool build_asm(char* output)
+bool build_asm(char* executable_file)
 {
     FILE* assembler = fopen("asm", "wb");
     if(!assembler) 
@@ -111,14 +122,14 @@ bool build_asm(char* output)
         nob_log(NOB_ERROR, "Could not create assembler: %s\n", strerror(errno));
         return false;
     }
-    assert(assembler != NULL);
     size_t written = fwrite(fasm, sizeof(fasm[0]), fasm_len, assembler);
     assert(written == fasm_len);
-    fclose(assembler);
+    close_file(assembler);
     chmod("./asm", 0777);
-    exec_asm(output);
-    chmod("./a.out", 0777);
+    if(!exec_asm(executable_file)) return false;
+    chmod(executable_file, 0777);
     remove("./asm");
+    assert(assembler == NULL);
     return true;
 }
 
@@ -126,6 +137,7 @@ bool generate_asm(char* source)
 {
     assert(source != NULL);
     init_lexer(source);
+    open_asm_file();
     asm_prelude();
     bool loop = true;
     while(loop)
@@ -134,10 +146,10 @@ bool generate_asm(char* source)
         switch(tok.kind)
         {
             case NUM:
-                write_file("\tpush %d\n", atoi(tok.start));
+                write_asm_file("\tpush %d\n", atoi(tok.start));
                 break;
             case PLUS: 
-                write_file(
+                write_asm_file(
                     "\tpop rbx\n"
                     "\tpop rax\n"
                     "\tadd rax, rbx\n"
@@ -145,7 +157,7 @@ bool generate_asm(char* source)
                 );
                 break;
             case MINUS:
-                write_file(
+                write_asm_file(
                     "\tpop rbx\n"
                     "\tpop rax\n"
                     "\tsub rax, rbx\n"
@@ -153,7 +165,7 @@ bool generate_asm(char* source)
                 );
                 break;
             case MULT:
-                write_file(
+                write_asm_file(
                     "\tpop rbx\n"
                     "\tpop rax\n"
                     "\tmul rbx\n"
@@ -161,7 +173,7 @@ bool generate_asm(char* source)
                 );
                 break;
             case DIV:
-                write_file(
+                write_asm_file(
                     "\tpop rbx\n"
                     "\tpop rax\n"
                     "\tdiv rbx\n"
@@ -169,20 +181,20 @@ bool generate_asm(char* source)
                 );
                 break;
             case DUP:
-                write_file(
+                write_asm_file(
                     "\tpop rax\n"
                     "\tpush rax\n"
                     "\tpush rax\n"
                 );
                 break;
             case PRINT:
-                write_file(
+                write_asm_file(
                     "\tpop rdi\n"
                     "\tcall print_number\n"
                 );
                 break;
             case DOT:
-                write_file(
+                write_asm_file(
                     "\tpop rdi\n"
                     "\tcall print_number\n"
                 );
@@ -190,7 +202,7 @@ bool generate_asm(char* source)
             case ILLEGAL:
                 //TODO: make errors better
                 nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
-                fclose(output_file);
+                close_file(asm_file);
                 return false;
             case EOFF:
                 loop = false;
@@ -198,14 +210,15 @@ bool generate_asm(char* source)
         }
     }
     asm_epilogue();
+    close_file(asm_file);
     return true;
 }
 
-bool compile(char* source, char* output)
+bool compile(char* source, char* executable_file)
 {
     assert(source != NULL);
-    init_compiler();
     if(!generate_asm(source)) return false;
-    if(!build_asm(output)) return false;
+    assert(asm_file == NULL);
+    if(!build_asm(executable_file)) return false;
     return true;
 }
