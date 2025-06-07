@@ -1811,6 +1811,7 @@ const char *nob_get_current_dir_temp(void)
 
     return buffer;
 #else
+    #define PATH_MAX 4096
     char *buffer = (char*) nob_temp_alloc(PATH_MAX);
     if (getcwd(buffer, PATH_MAX) == NULL) {
         nob_log(NOB_ERROR, "could not get current directory: %s", strerror(errno));

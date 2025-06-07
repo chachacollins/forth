@@ -2,14 +2,20 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdbool.h>
+#include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 #include <sys/wait.h>
 #include "compiler.h"
 #include "lexer.h"
+#include "nob.h"
 #include "fasm_header.h"
 
-#define write_file(fmt, ...) (fprintf(output_file, fmt, ##__VA_ARGS__))
+#define write_file(fmt, ...)                                                       \
+      do {                                                                         \
+        assert(output_file != NULL);                                               \
+        (fprintf(output_file, fmt, ##__VA_ARGS__));                                \
+      } while (0)
 
 //TODO: ERROR Handling
 FILE* output_file;
@@ -96,21 +102,28 @@ void exec_asm(void)
     }
 }
 
-void build_asm(void)
+bool build_asm(void)
 {
     FILE* assembler = fopen("asm", "wb");
+    if(!assembler) 
+    {
+        nob_log(NOB_ERROR, "Could not create assembler: %s\n", strerror(errno));
+        return false;
+    }
     assert(assembler != NULL);
-    fwrite(fasm, sizeof(fasm[0]), fasm_len, assembler);
+    size_t written = fwrite(fasm, sizeof(fasm[0]), fasm_len, assembler);
+    assert(written == fasm_len);
     fclose(assembler);
     chmod("./asm", 0777);
     exec_asm();
     chmod("./a.out", 0777);
     remove("./asm");
+    return true;
 }
 
-void compile(char* source)
+bool generate_asm(char* source) 
 {
-    init_compiler();
+    assert(source != NULL);
     init_lexer(source);
     asm_prelude();
     bool loop = true;
@@ -167,11 +180,30 @@ void compile(char* source)
                     "\tcall print_number\n"
                 );
                 break;
+            case DOT:
+                write_file(
+                    "\tpop rdi\n"
+                    "\tcall print_number\n"
+                );
+                break;
+            case ILLEGAL:
+                //TODO: make errors better
+                nob_log(NOB_ERROR, "Error in token %.*s\n", tok.len, tok.start);
+                return false;
             case EOFF:
                 loop = false;
                 break;
         }
     }
     asm_epilogue();
-    build_asm();
+    return true;
+}
+
+bool compile(char* source)
+{
+    assert(source != NULL);
+    init_compiler();
+    if(!generate_asm(source)) return false;
+    if(!build_asm()) return false;
+    return true;
 }

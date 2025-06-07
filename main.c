@@ -1,6 +1,9 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "compiler.h"
+#define NOB_IMPLEMENTATION
+#include "nob.h"
 
 char* read_file(const char* filename)
 {
@@ -37,15 +40,17 @@ char* read_file(const char* filename)
 void usage(void)
 {
     fprintf(stderr, "Usage: forth <file>\n");
-    exit(0);
 }
 
 int main(int argc, char** argv)
 {
     if(argc < 2) {
         usage();
+        exit(1);
     }
+    int result = 0;
     char* source = read_file(argv[1]);
-    compile(source);
+    if(!compile(source)) result = 1;
     free(source);
+    return result;
 }

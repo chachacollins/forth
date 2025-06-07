@@ -12,7 +12,6 @@ int main(int argc, char **argv)
     cmd_append(&cmd, "-o", "forth");
     cmd_append(&cmd, "main.c", "lexer.c", "compiler.c");
     cmd_append(&cmd, "-Wextra", "-Wall", "-Werror", "-std=c11");
-    cmd_append(&cmd, "-fanalyzer");
     if (!nob_cmd_run_sync(cmd)) return 1;
     return 0;
 }
