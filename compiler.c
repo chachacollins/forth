@@ -86,13 +86,13 @@ void asm_epilogue(void)
     fclose(output_file);
 }
 
-void exec_asm(void)
+void exec_asm(char* output)
 {
     pid_t child = fork();
     assert(child >= 0);
     if(child == 0) 
     {
-        char* argv[] = {"./asm", "out.asm", "a.out", NULL};
+        char* argv[] = {"./asm", "out.asm", output, NULL};
         int result = execv(argv[0], argv);
         assert(result == 0);
     } else
@@ -102,7 +102,7 @@ void exec_asm(void)
     }
 }
 
-bool build_asm(void)
+bool build_asm(char* output)
 {
     FILE* assembler = fopen("asm", "wb");
     if(!assembler) 
@@ -115,7 +115,7 @@ bool build_asm(void)
     assert(written == fasm_len);
     fclose(assembler);
     chmod("./asm", 0777);
-    exec_asm();
+    exec_asm(output);
     chmod("./a.out", 0777);
     remove("./asm");
     return true;
@@ -188,7 +188,7 @@ bool generate_asm(char* source)
                 break;
             case ILLEGAL:
                 //TODO: make errors better
-                nob_log(NOB_ERROR, "Error in token %.*s\n", tok.len, tok.start);
+                nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
                 return false;
             case EOFF:
                 loop = false;
@@ -199,11 +199,11 @@ bool generate_asm(char* source)
     return true;
 }
 
-bool compile(char* source)
+bool compile(char* source, char* output)
 {
     assert(source != NULL);
     init_compiler();
     if(!generate_asm(source)) return false;
-    if(!build_asm()) return false;
+    if(!build_asm(output)) return false;
     return true;
 }

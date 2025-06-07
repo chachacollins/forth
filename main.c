@@ -39,18 +39,23 @@ char* read_file(const char* filename)
 
 void usage(void)
 {
-    fprintf(stderr, "Usage: forth <file>\n");
+    nob_log(NOB_INFO, "Usage: forth <source> <output>");
 }
 
 int main(int argc, char** argv)
 {
+    int result = 0;
+    char* output = "a.out";
     if(argc < 2) {
         usage();
         exit(1);
+    } else if(argc == 3) 
+    {
+        output = argv[2];
     }
-    int result = 0;
+
     char* source = read_file(argv[1]);
-    if(!compile(source)) result = 1;
+    if(!compile(source, output)) result = 1;
     free(source);
     return result;
 }
