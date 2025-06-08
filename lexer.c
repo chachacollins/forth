@@ -1,8 +1,9 @@
-#include "lexer.h"
 #include <stdbool.h>
 #include <stdio.h>
 #include <assert.h>
 #include <string.h>
+#include "lexer.h"
+#include "nob.h"
 
 typedef struct {
     const char* start;
@@ -93,6 +94,8 @@ static TokenKind identifier(void)
     {
         case 'd': return match_ident(1,2,"up", DUP);
         case 'p': return match_ident(1,4, "rint", PRINT);
+        case 'i': return match_ident(1,1,"f", IF);
+        case 'e': return match_ident(1,2,"nd", END);
         default: return ILLEGAL;
     }
 }
@@ -117,7 +120,75 @@ Token next_token(void)
         case '*': return make_token(MULT);
         case '/': return make_token(DIV);
         case '.': return make_token(DOT);
+        case '=': return make_token(EQUAL);
         case '\0': return make_token(EOFF);
         default: return make_token(ILLEGAL);
     }
+}
+
+#define STACK_SIZE 1024
+typedef struct {
+    int items[STACK_SIZE];
+    int* sp;
+} Stack;
+
+void init_stack(Stack *stack)
+{
+    stack->sp = stack->items;
+}
+
+void stack_push(Stack *stack, int value)
+{
+    *stack->sp++ = value;
+}
+
+int stack_pop(Stack *stack)
+{
+    stack->sp--;
+    return *stack->sp;
+}
+
+TokenList generate_tokens(void)
+{
+    TokenList token_list = {0};
+    Stack addr_stack = {0};
+    init_stack(&addr_stack);
+    bool loop = true;
+    while(loop)
+    {
+        Token tok = next_token();
+        switch(tok.kind)
+        {
+            case EQUAL:
+            case PRINT:
+            case DOT:
+            case ILLEGAL:
+            case PLUS:
+            case DUP:
+            case MINUS:
+            case MULT:
+            case DIV:
+            case NUM:
+                nob_da_append(&token_list, tok);
+                break;
+            case IF:
+                stack_push(&addr_stack, token_list.count);
+                nob_da_append(&token_list, tok);
+                break;
+            case END:
+            {
+                int back_addr = stack_pop(&addr_stack);
+                Token *if_tok = &token_list.items[back_addr];
+                assert(if_tok->kind == IF);
+                if_tok->addr = token_list.count;
+                tok.addr = token_list.count;
+                nob_da_append(&token_list, tok);
+                break;
+            }
+            case EOFF:
+                loop = false;
+                break;
+        }
+    }
+    return token_list;
 }

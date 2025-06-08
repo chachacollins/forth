@@ -176,16 +176,22 @@ bool generate_asm(char* source)
     assert(source != NULL);
     init_lexer(source);
     open_asm_file();
-    #define handle_error()                                                         \
+    #define clean_up()                                                             \
         do {                                                                       \
           close_file(asm_file);                                                    \
+          nob_da_free(token_list);                                                 \
+        } while (0)
+
+    #define handle_error()                                                         \
+        do {                                                                       \
+          clean_up();                                                              \
           return false;                                                            \
         } while (0)
     asm_prelude();
-    bool loop = true;
-    while(loop)
+    TokenList token_list = generate_tokens();
+    for(size_t i = 0; i < token_list.count; ++i)
     {
-        Token tok = next_token();
+        Token tok = token_list.items[i];
         switch(tok.kind)
         {
             case NUM:
@@ -198,6 +204,31 @@ bool generate_asm(char* source)
                 write_asm_file("\tpush %d\n", n);
                 break;
             }
+            case IF:
+                write_asm_file(
+                    "\tpop rax\n"
+                    "\ttest rax, rax\n"
+                    "\tjz add_%d\n",
+                    tok.addr
+                );
+                break;
+            case END:
+                write_asm_file(
+                    "add_%d:\n",
+                    tok.addr
+                );
+                break;
+            case EQUAL:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmove rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
             case PLUS: 
                 write_asm_file(
                     "\tpop rbx\n"
@@ -254,12 +285,11 @@ bool generate_asm(char* source)
                 nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
                 handle_error();
             case EOFF:
-                loop = false;
                 break;
         }
     }
     asm_epilogue();
-    close_file(asm_file);
+    clean_up();
     return true;
 }
 

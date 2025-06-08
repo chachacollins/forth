@@ -1,8 +1,13 @@
 #ifndef LEXER_H
 #define LEXER_H
+#include <stdio.h>
+
 
 typedef enum {
     DUP,
+    IF,
+    END,
+    EQUAL,
     PRINT,
     PLUS,
     MINUS,
@@ -18,8 +23,15 @@ typedef struct {
     TokenKind kind;
     const char* start;
     int len;
+    int addr;
 } Token;
 
+typedef struct {
+    Token* items;
+     size_t count;
+     size_t capacity;
+} TokenList;
+
 void init_lexer(char* source);
-Token next_token(void);
+TokenList generate_tokens(void);
 #endif
