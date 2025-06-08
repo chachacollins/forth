@@ -11,8 +11,10 @@
 #include "nob.h"
 #include "fasm_header.h"
 
-//TODO: handle parseint
-//TODO: fix the magic values
+#define SCRATCH_BUFFER "10"
+#define ASSEMBLER "./fasm"
+#define DEFAULT_OUTPUT "out.asm"
+#define EXECUTABLE_PERMS  0755
 
 #define write_asm_file(fmt, ...)                                                   \
       do {                                                                         \
@@ -44,7 +46,7 @@ void asm_prelude(void)
     write_asm_file(
         "format ELF64 executable\n"
         "segment readable writeable\n"
-        "scratch rb 10\n"
+        "scratch rb "SCRATCH_BUFFER"\n"
         "segment readable executable\n"
         "print_number:\n"
         "\tmov qword [scratch], 0\n"
@@ -99,37 +101,73 @@ bool exec_asm(char* executable_file)
     pid_t child = fork();
     if(child < 0) 
     {
-        nob_log(NOB_ERROR, "%s", strerror(errno));
+        nob_log(NOB_ERROR, "Fork failed: %s", strerror(errno));
         return false;
     } else if (child == 0) 
     {
-        char* argv[] = {"./asm", "out.asm", executable_file, NULL};
+        char* argv[] = {ASSEMBLER, DEFAULT_OUTPUT, executable_file, NULL};
         (void)execv(argv[0], argv);
         NOB_UNREACHABLE("Execv failed\n");
     } else
     {
         pid_t ret = wait(NULL);
-        if(ret < 0) return false;
+        if(ret < 0) 
+        {
+            nob_log(NOB_ERROR, "Wait failed: %s", strerror(errno));
+            return false;
+        }
     }
     return true;
 }
 
 bool build_asm(char* executable_file)
 {
-    FILE* assembler = fopen("asm", "wb");
+    FILE* assembler = fopen(ASSEMBLER, "wb");
     if(!assembler) 
     {
-        nob_log(NOB_ERROR, "Could not create assembler: %s\n", strerror(errno));
+        nob_log(NOB_ERROR, "Could not create assembler: %s", strerror(errno));
         return false;
     }
     size_t written = fwrite(fasm, sizeof(fasm[0]), fasm_len, assembler);
-    assert(written == fasm_len);
     close_file(assembler);
-    chmod("./asm", 0777);
+    if(written != fasm_len)
+    {
+        nob_log(NOB_ERROR, "Failed to write assembler expected %u wrote %zu", 
+                fasm_len, written
+                );
+        return false;
+    }
+    chmod(ASSEMBLER, EXECUTABLE_PERMS);
     if(!exec_asm(executable_file)) return false;
-    chmod(executable_file, 0777);
-    remove("./asm");
-    assert(assembler == NULL);
+    chmod(executable_file, EXECUTABLE_PERMS);
+    remove(ASSEMBLER);
+    return true;
+}
+
+bool parse_int(Token tok, int *n)
+{
+    assert(tok.len > 0);
+    if(tok.len > 10) 
+    {
+        nob_log(NOB_ERROR, "Please provide a smaller number(we only support 32 bit intergers for now)");
+        return false;
+    }
+    char buffer[11] = {0};
+    memcpy(buffer, tok.start, tok.len);
+    buffer[tok.len] = '\0';
+    char* endptr;
+    long result = strtol(buffer, &endptr, 10);
+
+    if (*endptr != '\0') {
+        nob_log(NOB_ERROR, "Invalid number format: %.*s", tok.len, tok.start);
+        return false;
+    }
+
+    if (result < INT_MIN || result > INT_MAX) {
+        nob_log(NOB_ERROR, "Number out of range: %.*s", tok.len, tok.start);
+        return false;
+    }
+    *n = (int)result;
     return true;
 }
 
@@ -138,6 +176,11 @@ bool generate_asm(char* source)
     assert(source != NULL);
     init_lexer(source);
     open_asm_file();
+    #define handle_error()                                                         \
+        do {                                                                       \
+          close_file(asm_file);                                                    \
+          return false;                                                            \
+        } while (0)
     asm_prelude();
     bool loop = true;
     while(loop)
@@ -146,8 +189,15 @@ bool generate_asm(char* source)
         switch(tok.kind)
         {
             case NUM:
-                write_asm_file("\tpush %d\n", atoi(tok.start));
+            {
+                int n;
+                if(!parse_int(tok, &n)) 
+                {
+                    handle_error();
+                }
+                write_asm_file("\tpush %d\n", n);
                 break;
+            }
             case PLUS: 
                 write_asm_file(
                     "\tpop rbx\n"
@@ -202,8 +252,7 @@ bool generate_asm(char* source)
             case ILLEGAL:
                 //TODO: make errors better
                 nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
-                close_file(asm_file);
-                return false;
+                handle_error();
             case EOFF:
                 loop = false;
                 break;
