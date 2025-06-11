@@ -6,8 +6,13 @@
 typedef enum {
     DUP,
     IF,
+    ELSE,
     END,
     EQUAL,
+    LESS,
+    LESS_EQUAL,
+    GREATER,
+    GREATER_EQUAL,
     PRINT,
     PLUS,
     MINUS,
@@ -23,7 +28,9 @@ typedef struct {
     TokenKind kind;
     const char* start;
     int len;
-    int addr;
+    int line;
+    int addr_to; // address to jump to
+    int addr_fro; //hack but it works
 } Token;
 
 typedef struct {
