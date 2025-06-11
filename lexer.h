@@ -40,5 +40,5 @@ typedef struct {
 } TokenList;
 
 void init_lexer(char* source);
-TokenList generate_tokens(void);
+bool generate_tokens(TokenList *tokenlist);
 #endif

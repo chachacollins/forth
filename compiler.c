@@ -202,7 +202,8 @@ bool generate_asm(char* source)
           return false;                                                            \
         } while (0)
     asm_prelude();
-    TokenList token_list = generate_tokens();
+    TokenList token_list = {0};
+    if(!generate_tokens(&token_list)) handle_error();
     for(size_t i = 0; i < token_list.count; ++i)
     {
         Token tok = token_list.items[i];

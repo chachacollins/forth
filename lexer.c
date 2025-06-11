@@ -176,7 +176,7 @@ int stack_pop(Stack *stack)
 }
 
 //TODO: FIX ERROR HANDLING
-TokenList generate_tokens(void)
+ bool generate_tokens(TokenList *tokenlist)
 {
     TokenList token_list = {0};
     Stack addr_stack = {0};
@@ -214,8 +214,9 @@ TokenList generate_tokens(void)
                 Token *back_tok = &token_list.items[back_addr];
                 if(back_tok->kind != IF) 
                 {
-                    nob_log(NOB_ERROR, "line:%d `else` can only be used in if blocks",
+                    nob_log(NOB_ERROR, "line:%d `else` can only be used in `if` blocks",
                             tok.line);
+                    return false;
                 }
                 back_tok->addr_to = token_list.count;
                 tok.addr_fro = token_list.count;
@@ -229,8 +230,9 @@ TokenList generate_tokens(void)
                 Token *back_tok = &token_list.items[back_addr];
                 if(!(back_tok->kind == IF || back_tok->kind == ELSE)) 
                 {
-                    nob_log(NOB_ERROR, "line:%d `end` can only be used in if blocks for now",
+                    nob_log(NOB_ERROR, "line:%d `end` can only be used in `if` `else` blocks for now",
                             tok.line);
+                    return false;
                 }
                 tok.addr_fro = token_list.count;
                 back_tok->addr_to = token_list.count;
@@ -242,5 +244,6 @@ TokenList generate_tokens(void)
                 break;
         }
     }
-    return token_list;
+    *tokenlist = token_list;
+    return true;
 }
