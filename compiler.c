@@ -8,6 +8,7 @@
 #include <sys/wait.h>
 #include "compiler.h"
 #include "lexer.h"
+//TODO: REMOVE NOB DEPENDANCY
 #include "nob.h"
 #include "fasm_header.h"
 
@@ -15,6 +16,7 @@
 #define ASSEMBLER "./fasm"
 #define DEFAULT_OUTPUT "out.asm"
 #define EXECUTABLE_PERMS  0755
+#define MAX_INT_SIZE  10
 
 #define write_asm_file(fmt, ...)                                                   \
       do {                                                                         \
@@ -40,6 +42,7 @@
 
 //TODO: change this someday from being global as of now idgaf
 FILE* asm_file;
+
 
 void asm_prelude(void)
 {
@@ -110,11 +113,20 @@ bool exec_asm(char* executable_file)
         NOB_UNREACHABLE("Execv failed\n");
     } else
     {
-        pid_t ret = wait(NULL);
-        if(ret < 0) 
-        {
+        int status;
+        pid_t ret = waitpid(child, &status, 0);
+        if (ret == -1) {
             nob_log(NOB_ERROR, "Wait failed: %s", strerror(errno));
             return false;
+        }
+        if (WIFEXITED(status)) 
+        {
+            int exit_status = WEXITSTATUS(status);
+            if(exit_status != 0) 
+            {
+                nob_log(NOB_INFO, "assembler failed, status=%d\n", WEXITSTATUS(status));
+                return false;
+            }
         }
     }
     return true;
@@ -152,18 +164,20 @@ bool parse_int(Token tok, int *n)
         nob_log(NOB_ERROR, "Please provide a smaller number(we only support 32 bit intergers for now)");
         return false;
     }
-    char buffer[11] = {0};
+    char buffer[MAX_INT_SIZE + 2] = {0};
     memcpy(buffer, tok.start, tok.len);
     buffer[tok.len] = '\0';
     char* endptr;
     long result = strtol(buffer, &endptr, 10);
 
-    if (*endptr != '\0') {
+    if (*endptr != '\0') 
+    {
         nob_log(NOB_ERROR, "Invalid number format: %.*s", tok.len, tok.start);
         return false;
     }
 
-    if (result < INT_MIN || result > INT_MAX) {
+    if (result < INT_MIN || result > INT_MAX) 
+    {
         nob_log(NOB_ERROR, "Number out of range: %.*s", tok.len, tok.start);
         return false;
     }
@@ -176,16 +190,23 @@ bool generate_asm(char* source)
     assert(source != NULL);
     init_lexer(source);
     open_asm_file();
-    #define handle_error()                                                         \
+    #define clean_up()                                                             \
         do {                                                                       \
           close_file(asm_file);                                                    \
+          nob_da_free(token_list);                                                 \
+        } while (0)
+
+    #define handle_error()                                                         \
+        do {                                                                       \
+          clean_up();                                                              \
           return false;                                                            \
         } while (0)
     asm_prelude();
-    bool loop = true;
-    while(loop)
+    TokenList token_list = {0};
+    if(!generate_tokens(&token_list)) handle_error();
+    for(size_t i = 0; i < token_list.count; ++i)
     {
-        Token tok = next_token();
+        Token tok = token_list.items[i];
         switch(tok.kind)
         {
             case NUM:
@@ -198,6 +219,83 @@ bool generate_asm(char* source)
                 write_asm_file("\tpush %d\n", n);
                 break;
             }
+            case IF:
+                write_asm_file(
+                    "\tpop rax\n"
+                    "\ttest rax, rax\n"
+                    "\tjz label_%d\n",
+                    tok.addr_to
+                );
+                break;
+            case ELSE:
+                write_asm_file(
+                    "\tjmp label_%d\n"
+                    "label_%d:\n",
+                    tok.addr_to,
+                    tok.addr_fro
+                );
+                break;
+            case END:
+                write_asm_file(
+                    "label_%d:\n",
+                    tok.addr_fro
+                );
+                break;
+            case EQUAL:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmove rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
+            case LESS:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmovl rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
+            case LESS_EQUAL:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmovle rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
+            case GREATER:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmovg rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
+            case GREATER_EQUAL:
+                write_asm_file(
+                    "\tmov rcx, 0\n"
+                    "\tmov rdx, 1\n"
+                    "\tpop rbx\n"
+                    "\tpop rax\n"
+                    "\tcmp rax, rbx\n"
+                    "\tcmovge rcx, rdx\n"
+                    "\tpush rcx\n"
+                );
+                break;
             case PLUS: 
                 write_asm_file(
                     "\tpop rbx\n"
@@ -251,15 +349,14 @@ bool generate_asm(char* source)
                 break;
             case ILLEGAL:
                 //TODO: make errors better
-                nob_log(NOB_ERROR, "line illegal token %.*s", tok.len, tok.start);
+                nob_log(NOB_ERROR, "line:%d illegal token %.*s", tok.line, tok.len, tok.start);
                 handle_error();
             case EOFF:
-                loop = false;
                 break;
         }
     }
     asm_epilogue();
-    close_file(asm_file);
+    clean_up();
     return true;
 }
 
